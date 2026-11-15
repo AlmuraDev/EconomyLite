@@ -11,55 +11,53 @@ import org.spongepowered.api.service.economy.transaction.TransactionResult;
 import org.spongepowered.api.service.economy.transaction.TransactionType;
 
 import java.math.BigDecimal;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.Set;
 
 public class LiteTransactionResult implements TransactionResult {
-	
-	private Account account;
-	private BigDecimal amount;
-	private Set<Context> contexts;
-	private Currency currency;
-	private ResultType result;
-	private TransactionType transactionType;
-	
-	public LiteTransactionResult(Account account, BigDecimal amount, Currency currency, ResultType result, TransactionType transactionType) {
-		this.account = account;
-		this.amount = amount;
-		this.contexts = new HashSet<Context>();
-		this.currency = currency;
-		this.result = result;
-		this.transactionType = transactionType;
-	}
 
-	@Override
-	public Account getAccount() {
-		return this.account;
-	}
+    private final Account account;
+    private final BigDecimal amount;
+    private final Currency currency;
+    private final ResultType result;
+    private final TransactionType transactionType;
 
-	@Override
-	public BigDecimal getAmount() {
-		return this.amount;
-	}
+    public LiteTransactionResult(final Account account, final BigDecimal amount, final Currency currency, final ResultType result,
+            final TransactionType transactionType) {
+        this.account = account;
+        this.amount = amount;
+        this.currency = currency;
+        this.result = result;
+        this.transactionType = transactionType;
+    }
 
-	@Override
-	public Set<Context> getContexts() {
-		return this.contexts;
-	}
+    @Override
+    public Account account() {
+        return this.account;
+    }
 
-	@Override
-	public Currency getCurrency() {
-		return this.currency;
-	}
+    @Override
+    public BigDecimal amount() {
+        return this.amount;
+    }
 
-	@Override
-	public ResultType getResult() {
-		return this.result;
-	}
+    @Override
+    public Set<Context> contexts() {
+        return Collections.emptySet();
+    }
 
-	@Override
-	public TransactionType getType() {
-		return this.transactionType;
-	}
+    @Override
+    public Currency currency() {
+        return this.currency;
+    }
 
+    @Override
+    public ResultType result() {
+        return this.result;
+    }
+
+    @Override
+    public TransactionType type() {
+        return this.transactionType;
+    }
 }

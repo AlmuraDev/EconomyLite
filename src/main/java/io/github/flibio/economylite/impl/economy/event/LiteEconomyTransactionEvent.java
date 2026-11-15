@@ -3,46 +3,28 @@
  */
 package io.github.flibio.economylite.impl.economy.event;
 
-import io.github.flibio.economylite.EconomyLite;
-import org.spongepowered.api.event.cause.Cause;
-import org.spongepowered.api.event.cause.EventContext;
+import org.spongepowered.api.event.Cause;
 import org.spongepowered.api.event.economy.EconomyTransactionEvent;
 import org.spongepowered.api.event.impl.AbstractEvent;
 import org.spongepowered.api.service.economy.transaction.TransactionResult;
 
-import java.util.UUID;
+public final class LiteEconomyTransactionEvent extends AbstractEvent implements EconomyTransactionEvent {
 
-public class LiteEconomyTransactionEvent extends AbstractEvent implements EconomyTransactionEvent {
+    private final TransactionResult result;
+    private final Cause cause;
 
-    private TransactionResult result;
-    private Cause cause;
-
-    public LiteEconomyTransactionEvent(TransactionResult result) {
-        this.result = result;
-    }
-
-    public LiteEconomyTransactionEvent(TransactionResult result, Cause cause) {
+    public LiteEconomyTransactionEvent(final TransactionResult result, final Cause cause) {
         this.result = result;
         this.cause = cause;
     }
 
-    public LiteEconomyTransactionEvent(TransactionResult result, UUID user, Cause cause) {
-        this.result = result;
-        this.cause = Cause.of(EventContext.empty(), user);
+    @Override
+    public Cause cause() {
+        return this.cause;
     }
 
     @Override
-    public Cause getCause() {
-        if (cause != null) {
-            return cause;
-        } else {
-            return Cause.of(EventContext.empty(), EconomyLite.getInstance().getPluginContainer());
-        }
-    }
-
-    @Override
-    public TransactionResult getTransactionResult() {
+    public TransactionResult transactionResult() {
         return this.result;
     }
-
 }

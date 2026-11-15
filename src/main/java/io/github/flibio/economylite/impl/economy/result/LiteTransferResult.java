@@ -11,17 +11,18 @@ import org.spongepowered.api.service.economy.transaction.TransferResult;
 
 import java.math.BigDecimal;
 
-public class LiteTransferResult extends LiteTransactionResult implements TransferResult {
-    
-    private Account toWho;
+public final class LiteTransferResult extends LiteTransactionResult implements TransferResult {
 
-    public LiteTransferResult(Account account, BigDecimal amount, Currency currency, ResultType result, Account toWho) {
-        super(account, amount, currency, result, TransactionTypes.TRANSFER);
-        this.toWho = toWho;
+    private final Account accountTo;
+
+    public LiteTransferResult(final Account account, final BigDecimal amount, final Currency currency, final ResultType result,
+            final Account accountTo) {
+        super(account, amount, currency, result, TransactionTypes.TRANSFER.get());
+        this.accountTo = accountTo;
     }
 
     @Override
-    public Account getAccountTo() {
-        return this.toWho;
+    public Account accountTo() {
+        return this.accountTo;
     }
 }

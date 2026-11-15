@@ -3,17 +3,24 @@
  */
 package io.github.flibio.economylite;
 
-import org.spongepowered.api.event.cause.EventContext;
+import org.spongepowered.api.event.Cause;
+import org.spongepowered.api.event.EventContext;
 
-import org.spongepowered.api.event.cause.Cause;
+public final class CauseFactory {
 
-public class CauseFactory {
-
-    public static Cause create(String reason) {
-        return Cause.of(EventContext.empty(), reason, EconomyLite.getInstance().getPluginContainer());
+    private CauseFactory() {
     }
 
-    public static Cause stringCause(String reason) {
-        return Cause.of(EventContext.empty(),("economylite:" + reason.toLowerCase().replaceAll(" ", "_")));
+    /** A cause of EconomyLite itself, with what it is doing. */
+    public static Cause create(final String reason) {
+        return Cause.of(EventContext.empty(), EconomyLite.getInstance().getPluginContainer(), reason);
+    }
+
+    /** A cause of a command: whoever ran it, then EconomyLite. */
+    public static Cause command(final Cause commandCause) {
+        return Cause.builder()
+                .from(commandCause)
+                .append(EconomyLite.getInstance().getPluginContainer())
+                .build(commandCause.context());
     }
 }

@@ -3,206 +3,102 @@
  */
 package io.github.flibio.economylite.impl.economy.account;
 
-import io.github.flibio.economylite.CauseFactory;
 import io.github.flibio.economylite.EconomyLite;
-import io.github.flibio.economylite.api.CurrencyEconService;
-import io.github.flibio.economylite.api.PlayerEconService;
-import io.github.flibio.economylite.impl.economy.event.LiteEconomyTransactionEvent;
-import io.github.flibio.economylite.impl.economy.result.LiteTransactionResult;
-import io.github.flibio.economylite.impl.economy.result.LiteTransferResult;
-import io.github.flibio.utils.player.NameUtils;
+import net.kyori.adventure.text.Component;
 import org.spongepowered.api.Sponge;
-import org.spongepowered.api.event.cause.Cause;
-import org.spongepowered.api.service.context.Context;
+import org.spongepowered.api.entity.living.player.server.ServerPlayer;
+import org.spongepowered.api.event.Cause;
+import org.spongepowered.api.profile.GameProfile;
 import org.spongepowered.api.service.economy.Currency;
-import org.spongepowered.api.service.economy.account.Account;
 import org.spongepowered.api.service.economy.account.UniqueAccount;
-import org.spongepowered.api.service.economy.transaction.ResultType;
-import org.spongepowered.api.service.economy.transaction.TransactionResult;
-import org.spongepowered.api.service.economy.transaction.TransactionType;
-import org.spongepowered.api.service.economy.transaction.TransactionTypes;
-import org.spongepowered.api.service.economy.transaction.TransferResult;
-import org.spongepowered.api.text.Text;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
-public class LiteUniqueAccount implements UniqueAccount {
+public final class LiteUniqueAccount extends LiteAccount implements UniqueAccount {
 
-    private PlayerEconService playerService = EconomyLite.getPlayerService();
-    private CurrencyEconService currencyService = EconomyLite.getCurrencyService();
+    private final UUID uuid;
 
-    private UUID uuid;
-    private String name;
-
-    public LiteUniqueAccount(UUID uuid) {
+    public LiteUniqueAccount(final UUID uuid) {
         this.uuid = uuid;
+    }
+
+    /** The player's name as the server knows it, otherwise the UUID. */
+    public String name() {
+        return nameOf(this.uuid);
+    }
+
+    public static String nameOf(final UUID uuid) {
         try {
-            Optional<String> nOpt = NameUtils.getName(uuid);
-            if (nOpt.isPresent()) {
-                this.name = nOpt.get();
-            } else {
-                this.name = uuid.toString();
-            }
-        } catch (Exception e) {
-            this.name = uuid.toString();
-        }
-    }
-
-    @Override
-    public Text getDisplayName() {
-        return Text.of(name);
-    }
-
-    @Override
-    public BigDecimal getDefaultBalance(Currency currency) {
-        Optional<Double> bOpt = EconomyLite.getConfigManager().getValue(Double.class, "default-balance", "player");
-        if (bOpt.isPresent()) {
-            return BigDecimal.valueOf(bOpt.get());
-        } else {
-            return BigDecimal.ZERO;
-        }
-    }
-
-    @Override
-    public boolean hasBalance(Currency currency, Set<Context> contexts) {
-        return playerService.accountExists(uuid, currency, CauseFactory.create("Has Balance"));
-    }
-
-    @Override
-    public BigDecimal getBalance(Currency currency, Set<Context> contexts) {
-        return playerService.getBalance(uuid, currency, CauseFactory.create("Get Balance"));
-    }
-
-    @Override
-    public Map<Currency, BigDecimal> getBalances(Set<Context> contexts) {
-        HashMap<Currency, BigDecimal> balances = new HashMap<Currency, BigDecimal>();
-        for (Currency currency : currencyService.getCurrencies()) {
-            if (playerService.accountExists(uuid, currency, CauseFactory.create("Get Balances"))) {
-                balances.put(currency, playerService.getBalance(uuid, currency, CauseFactory.create("Get Balances Put")));
-            }
-        }
-        return balances;
-    }
-
-    @Override
-    public TransactionResult setBalance(Currency currency, BigDecimal amount, Cause cause, Set<Context> contexts) {
-        // Check if the new balance is in bounds
-        if (amount.compareTo(BigDecimal.ZERO) == -1 || amount.compareTo(BigDecimal.valueOf(999999999)) == 1) {
-            return resultAndEvent(this, amount, currency, ResultType.ACCOUNT_NO_SPACE, TransactionTypes.DEPOSIT, cause);
-        }
-        if (playerService.setBalance(uuid, amount, currency, cause)) {
-            return resultAndEvent(this, amount, currency, ResultType.SUCCESS, TransactionTypes.DEPOSIT, cause);
-        } else {
-            return resultAndEvent(this, amount, currency, ResultType.FAILED, TransactionTypes.DEPOSIT, cause);
-        }
-    }
-
-    @Override
-    public Map<Currency, TransactionResult> resetBalances(Cause cause, Set<Context> contexts) {
-        HashMap<Currency, TransactionResult> results = new HashMap<>();
-        for (Currency currency : currencyService.getCurrencies()) {
-            if (playerService.accountExists(uuid, currency, cause)) {
-                if (playerService.setBalance(uuid, getDefaultBalance(currency), currency, cause)) {
-                    results.put(currency, resultAndEvent(this, getBalance(currency), currency, ResultType.SUCCESS, TransactionTypes.WITHDRAW, cause));
-                } else {
-                    results.put(currency, resultAndEvent(this, getBalance(currency), currency, ResultType.FAILED, TransactionTypes.WITHDRAW, cause));
+            if (Sponge.isServerAvailable()) {
+                final Optional<ServerPlayer> online = Sponge.server().player(uuid);
+                if (online.isPresent()) {
+                    return online.get().name();
+                }
+                final Optional<String> cached = Sponge.server().gameProfileManager().cache().findById(uuid).flatMap(GameProfile::name);
+                if (cached.isPresent()) {
+                    return cached.get();
                 }
             }
+        } catch (final RuntimeException ignored) {
+            // Fall back to the UUID
         }
-        return results;
-    }
-
-    @Override
-    public TransactionResult resetBalance(Currency currency, Cause cause, Set<Context> contexts) {
-        if (playerService.setBalance(uuid, getDefaultBalance(currency), currency, cause)) {
-            return resultAndEvent(this, BigDecimal.ZERO, currency, ResultType.SUCCESS, TransactionTypes.WITHDRAW, cause);
-        } else {
-            return resultAndEvent(this, BigDecimal.ZERO, currency, ResultType.FAILED, TransactionTypes.WITHDRAW, cause);
-        }
-    }
-
-    @Override
-    public TransactionResult deposit(Currency currency, BigDecimal amount, Cause cause, Set<Context> contexts) {
-        BigDecimal newBal = getBalance(currency).add(amount);
-        // Check if the new balance is in bounds
-        if (newBal.compareTo(BigDecimal.ZERO) == -1 || newBal.compareTo(BigDecimal.valueOf(999999999)) == 1) {
-            return resultAndEvent(this, amount, currency, ResultType.ACCOUNT_NO_SPACE, TransactionTypes.DEPOSIT, cause);
-        }
-        if (playerService.deposit(uuid, amount, currency, cause)) {
-            return resultAndEvent(this, amount, currency, ResultType.SUCCESS, TransactionTypes.DEPOSIT, cause);
-        } else {
-            return resultAndEvent(this, amount, currency, ResultType.FAILED, TransactionTypes.DEPOSIT, cause);
-        }
-    }
-
-    @Override
-    public TransactionResult withdraw(Currency currency, BigDecimal amount, Cause cause, Set<Context> contexts) {
-        BigDecimal newBal = getBalance(currency).subtract(amount);
-        // Check if the new balance is in bounds
-        if (newBal.compareTo(BigDecimal.ZERO) == -1) {
-            return resultAndEvent(this, amount, currency, ResultType.ACCOUNT_NO_FUNDS, TransactionTypes.WITHDRAW, cause);
-        }
-        if (newBal.compareTo(BigDecimal.valueOf(999999999)) == 1) {
-            return resultAndEvent(this, amount, currency, ResultType.ACCOUNT_NO_SPACE, TransactionTypes.WITHDRAW, cause);
-        }
-        if (playerService.withdraw(uuid, amount, currency, cause)) {
-            return resultAndEvent(this, amount, currency, ResultType.SUCCESS, TransactionTypes.WITHDRAW, cause);
-        } else {
-            return resultAndEvent(this, amount, currency, ResultType.FAILED, TransactionTypes.WITHDRAW, cause);
-        }
-    }
-
-    @Override
-    public TransferResult transfer(Account to, Currency currency, BigDecimal amount, Cause cause, Set<Context> contexts) {
-        BigDecimal newBal = to.getBalance(currency).add(amount);
-        // Check if the new balance is in bounds
-        if (newBal.compareTo(BigDecimal.ZERO) == -1 || newBal.compareTo(BigDecimal.valueOf(999999999)) == 1) {
-            return resultAndEvent(this, amount, currency, ResultType.ACCOUNT_NO_SPACE, to, cause);
-        }
-        // Check if the account has enough funds
-        if (amount.compareTo(getBalance(currency)) == 1) {
-            return resultAndEvent(this, amount, currency, ResultType.ACCOUNT_NO_FUNDS, to, cause);
-        }
-        if (withdraw(currency, amount, cause).getResult().equals(ResultType.SUCCESS)
-                && to.deposit(currency, amount, cause).getResult().equals(ResultType.SUCCESS)) {
-            return resultAndEvent(this, amount, currency, ResultType.SUCCESS, to, cause);
-        } else {
-            return resultAndEvent(this, amount, currency, ResultType.FAILED, to, cause);
-        }
-    }
-
-    @Override
-    public String getIdentifier() {
         return uuid.toString();
     }
 
     @Override
-    public Set<Context> getActiveContexts() {
-        return new HashSet<Context>();
-    }
-
-    private TransactionResult resultAndEvent(Account account, BigDecimal amount, Currency currency, ResultType resultType,
-            TransactionType transactionType, Cause cause) {
-        TransactionResult result = new LiteTransactionResult(account, amount, currency, resultType, transactionType);
-        Sponge.getEventManager().post(new LiteEconomyTransactionEvent(result, UUID.fromString(account.getIdentifier()), cause));
-        return result;
-    }
-
-    private TransferResult resultAndEvent(Account account, BigDecimal amount, Currency currency, ResultType resultType, Account toWho, Cause cause) {
-        TransferResult result = new LiteTransferResult(account, amount, currency, resultType, toWho);
-        Sponge.getEventManager().post(new LiteEconomyTransactionEvent(result, UUID.fromString(account.getIdentifier()), cause));
-        return result;
+    public Component displayName() {
+        return Component.text(this.name());
     }
 
     @Override
-    public UUID getUniqueId() {
-        return uuid;
+    public BigDecimal defaultBalance(final Currency currency) {
+        return EconomyLite.getDefaultPlayerBalance();
     }
 
+    @Override
+    protected boolean storedExists(final Currency currency, final Cause cause) {
+        return EconomyLite.getPlayerService().accountExists(this.uuid, currency, cause);
+    }
+
+    @Override
+    protected BigDecimal storedBalance(final Currency currency, final Cause cause) {
+        return EconomyLite.getPlayerService().getBalance(this.uuid, currency, cause);
+    }
+
+    @Override
+    protected boolean storeBalance(final Currency currency, final BigDecimal balance, final Cause cause) {
+        return EconomyLite.getPlayerService().setBalance(this.uuid, balance, currency, cause);
+    }
+
+    @Override
+    protected Object lock() {
+        return EconomyLite.getPlayerService();
+    }
+
+    @Override
+    public String identifier() {
+        return this.uuid.toString();
+    }
+
+    @Override
+    public Optional<String> friendlyIdentifier() {
+        return Optional.of(this.name());
+    }
+
+    @Override
+    public UUID uniqueId() {
+        return this.uuid;
+    }
+
+    @Override
+    public boolean equals(final Object other) {
+        return other instanceof LiteUniqueAccount && ((LiteUniqueAccount) other).uuid.equals(this.uuid);
+    }
+
+    @Override
+    public int hashCode() {
+        return this.uuid.hashCode();
+    }
 }

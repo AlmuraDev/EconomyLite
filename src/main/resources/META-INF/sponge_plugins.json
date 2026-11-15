@@ -1,0 +1,37 @@
+{
+    "loader": {
+        "name": "java_plain",
+        "version": "1.0"
+    },
+    "license": "MIT",
+    "global": {
+        "version": "${version}",
+        "links": {
+            "homepage": "https://github.com/Flibio/EconomyLite",
+            "source": "https://github.com/Flibio/EconomyLite",
+            "issues": "https://github.com/Flibio/EconomyLite/issues"
+        },
+        "contributors": [
+            {
+                "name": "Flibio",
+                "description": "Author"
+            }
+        ],
+        "dependencies": [
+            {
+                "id": "spongeapi",
+                "version": "${sponge_api_version}",
+                "load-order": "AFTER",
+                "optional": false
+            }
+        ]
+    },
+    "plugins": [
+        {
+            "id": "economylite",
+            "name": "EconomyLite",
+            "entrypoint": "io.github.flibio.economylite.EconomyLite",
+            "description": "An economy plugin for Sponge."
+        }
+    ]
+}

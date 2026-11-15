@@ -3,281 +3,164 @@
  */
 package io.github.flibio.economylite;
 
-import com.google.common.collect.ImmutableList;
 import com.google.inject.Inject;
 import io.github.flibio.economylite.api.CurrencyEconService;
 import io.github.flibio.economylite.api.PlayerEconService;
 import io.github.flibio.economylite.api.VirtualEconService;
-import io.github.flibio.economylite.bstats.Metrics;
-import io.github.flibio.economylite.commands.MigrateCommand;
-import io.github.flibio.economylite.commands.PayCommand;
-import io.github.flibio.economylite.commands.admin.AddCommand;
-import io.github.flibio.economylite.commands.admin.EconCommand;
-import io.github.flibio.economylite.commands.admin.RemoveCommand;
-import io.github.flibio.economylite.commands.admin.SetAllCommand;
-import io.github.flibio.economylite.commands.admin.SetCommand;
-import io.github.flibio.economylite.commands.balance.BalTopCommand;
-import io.github.flibio.economylite.commands.balance.BalanceCommand;
-import io.github.flibio.economylite.commands.currency.CurrencyCommand;
-import io.github.flibio.economylite.commands.currency.CurrencyCreateCommand;
-import io.github.flibio.economylite.commands.currency.CurrencyDeleteCommand;
-import io.github.flibio.economylite.commands.currency.CurrencySetCommand;
-import io.github.flibio.economylite.commands.virtual.PayVirtualCommand;
-import io.github.flibio.economylite.commands.virtual.VirtualAddCommand;
-import io.github.flibio.economylite.commands.virtual.VirtualBalanceCommand;
-import io.github.flibio.economylite.commands.virtual.VirtualEconCommand;
-import io.github.flibio.economylite.commands.virtual.VirtualPayCommand;
-import io.github.flibio.economylite.commands.virtual.VirtualRemoveCommand;
-import io.github.flibio.economylite.commands.virtual.VirtualSetCommand;
+import io.github.flibio.economylite.commands.Commands;
+import io.github.flibio.economylite.config.ConfigFile;
+import io.github.flibio.economylite.config.Messages;
 import io.github.flibio.economylite.impl.CurrencyService;
 import io.github.flibio.economylite.impl.PlayerDataService;
 import io.github.flibio.economylite.impl.VirtualDataService;
-import io.github.flibio.economylite.impl.economy.LiteCurrency;
 import io.github.flibio.economylite.impl.economy.LiteEconomyService;
-import io.github.flibio.economylite.impl.economy.registry.CurrencyRegistryModule;
-import io.github.flibio.economylite.modules.Module;
-import io.github.flibio.economylite.modules.loan.LoanModule;
-import io.github.flibio.economylite.modules.sql.SqlModule;
-import io.github.flibio.utils.commands.CommandLoader;
-import io.github.flibio.utils.config.ConfigManager;
-import io.github.flibio.utils.file.FileManager;
-import io.github.flibio.utils.message.MessageStorage;
-import ninja.leaping.configurate.ConfigurationNode;
-import ninja.leaping.configurate.commented.CommentedConfigurationNode;
-import org.slf4j.Logger;
-import org.spongepowered.api.Game;
+import io.github.flibio.economylite.storage.Database;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.apache.logging.log4j.Logger;
+import org.spongepowered.api.Server;
+import org.spongepowered.api.command.Command;
 import org.spongepowered.api.config.ConfigDir;
 import org.spongepowered.api.event.Listener;
-import org.spongepowered.api.event.game.state.GameConstructionEvent;
-import org.spongepowered.api.event.game.state.GamePreInitializationEvent;
-import org.spongepowered.api.plugin.Plugin;
-import org.spongepowered.api.plugin.PluginContainer;
-import org.spongepowered.api.service.economy.Currency;
+import org.spongepowered.api.event.lifecycle.ConstructPluginEvent;
+import org.spongepowered.api.event.lifecycle.ProvideServiceEvent;
+import org.spongepowered.api.event.lifecycle.RegisterCommandEvent;
+import org.spongepowered.api.event.lifecycle.RegisterRegistryValueEvent;
+import org.spongepowered.api.event.lifecycle.StoppingEngineEvent;
+import org.spongepowered.api.registry.RegistryTypes;
 import org.spongepowered.api.service.economy.EconomyService;
-import org.spongepowered.api.text.serializer.TextSerializers;
+import org.spongepowered.plugin.PluginContainer;
+import org.spongepowered.plugin.builtin.jvm.Plugin;
 
-import java.io.File;
+import java.math.BigDecimal;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
 
-import javax.xml.stream.events.Comment;
+@Plugin(EconomyLite.ID)
+public final class EconomyLite {
 
-@Plugin(id = PluginInfo.ID, name = PluginInfo.NAME, version = PluginInfo.VERSION, description = PluginInfo.DESCRIPTION)
-public class EconomyLite {
+    public static final String ID = "economylite";
 
-    @Inject @ConfigDir(sharedRoot = false) private Path configDir;
-
-    @Inject @ConfigDir(sharedRoot = true) private Path mainDir;
-
-    @SuppressWarnings("unused") @Inject private Metrics metrics;
-
-    @Inject private Logger logger;
-
-    @Inject private Game game;
-
-    @Inject private PluginContainer container;
-
-    private static ConfigManager currencyManager;
-    private static ConfigManager configManager;
-    private static MessageStorage messageStorage;
     private static EconomyLite instance;
 
-    public static LiteEconomyService economyService;
-    private static VirtualEconService virtualEconService;
-    private static PlayerEconService playerEconService;
-    public static CurrencyEconService currencyEconService;
+    private static ConfigFile config;
+    private static Messages messages;
+    private static Database database;
+    private static CurrencyService currencyService;
+    private static PlayerEconService playerService;
+    private static VirtualEconService virtualService;
+    private static LiteEconomyService economyService;
 
-    @Listener
-    public void onConstruct(GameConstructionEvent event) {
-        System.getProperties().setProperty("h2.bindAddress", "127.0.0.1");
+    private final PluginContainer container;
+    private final Logger logger;
+    private final Path configDir;
+
+    @Inject
+    public EconomyLite(final PluginContainer container, final Logger logger, @ConfigDir(sharedRoot = false) final Path configDir) {
+        this.container = container;
+        this.logger = logger;
+        this.configDir = configDir;
     }
 
     @Listener
-    public void onServerInitialize(GamePreInitializationEvent event) {
-        logger.info("EconomyLite " + PluginInfo.VERSION + " is initializing!");
+    public void onConstruct(final ConstructPluginEvent event) {
         instance = this;
-        // File setup
-        configManager = ConfigManager.create(configDir, "config.conf", logger);
-        currencyManager = ConfigManager.create(configDir, "currencies.conf", logger);
-        initializeFiles();
-        initializeCurrencies();
-        // Load Message Storage
-        messageStorage = MessageStorage.create(configDir, "messages", logger);
-        // Load modules
-        List<Module> postInitModules = new ArrayList<>();
-        getModules().forEach(m -> {
-            m.initializeConfig();
-            if (m.isEnabled()) {
-                if (m.initialize(logger, instance)) {
-                    logger.info("Loaded the " + m.getName() + " module!");
-                    postInitModules.add(m);
-                } else {
-                    logger.error("Failed to load the " + m.getName() + " module!");
-                }
-            } else {
-                logger.info("The " + m.getName() + " module is disabled!");
-            }
-        });
-        // If the services have not been set, set them to default.
-        if (playerEconService == null || virtualEconService == null) {
-            playerEconService = new PlayerDataService();
-            virtualEconService = new VirtualDataService();
+        this.logger.info("EconomyLite {} is initializing!", this.container.metadata().version());
+
+        config = new ConfigFile(this.configDir, "config.conf", this.logger);
+        config.setDefault("Default balance of player accounts.", 0.0, "default-balance", "player");
+        config.setDefault("Default balance of virtual accounts.", 0.0, "default-balance", "virtual");
+        config.setDefault("Enables or disables debug logging.", true, "debug-logging");
+        config.setDefault("If enabled players will be notified when an admin changes their balance", false, "notify-on-admin-commands");
+        config.setDefault("If enabled players will be asked to confirm payments to an offline player.", true, "confirm-offline-payments");
+        config.save();
+
+        currencyService = new CurrencyService(new ConfigFile(this.configDir, "currencies.conf", this.logger), this.logger);
+        messages = new Messages(this.configDir, this.logger);
+
+        try {
+            database = Database.open(this.configDir, this.logger);
+        } catch (final Exception e) {
+            this.logger.error("EconomyLite could not open its database, so it will not provide the economy", e);
+            return;
         }
-        // Load the economy service
+        final boolean debug = config.node("debug-logging").getBoolean(false);
+        playerService = new PlayerDataService(database, this.logger, debug);
+        virtualService = new VirtualDataService(database, this.logger, debug);
         economyService = new LiteEconomyService();
-        // Register the Economy Service
-        game.getServiceManager().setProvider(this, EconomyService.class, economyService);
-        // Post-initialize modules
-        postInitModules.forEach(module -> {
-            module.postInitialization(logger, instance);
-        });
-        // Register commands
-        CommandLoader.registerCommands(this, TextSerializers.FORMATTING_CODE.serialize(messageStorage.getMessage("command.invalidsource")),
-                new CurrencyCommand(),
-                new CurrencySetCommand(),
-                new CurrencyDeleteCommand(),
-                new CurrencyCreateCommand(),
-                new BalanceCommand(),
-                new EconCommand(),
-                new SetCommand(),
-                new SetAllCommand(),
-                new RemoveCommand(),
-                new AddCommand(),
-                new PayCommand(),
-                new BalTopCommand(),
-                new VirtualBalanceCommand(),
-                new VirtualEconCommand(),
-                new VirtualAddCommand(),
-                new VirtualSetCommand(),
-                new VirtualRemoveCommand(),
-                new VirtualPayCommand(),
-                new PayVirtualCommand(),
-                new MigrateCommand()
-        );
-        // Register currency registry
-        game.getRegistry().registerModule(Currency.class, new CurrencyRegistryModule());
+        this.logger.info("Using currency: {}", PlainTextComponentSerializer.plainText().serialize(currencyService.getCurrentCurrency().displayName()));
     }
 
-    private void initializeFiles() {
-        configManager.setDefault("Default balance of player accounts.", Double.class, 0.0, "default-balance", "player");
-        configManager.setDefault("Default balance of virtual accounts.", Double.class, 0.0, "default-balance", "virtual");
-        configManager.setDefault("Enables or disables debug logging.", Boolean.class, true, "debug-logging");
-        configManager.setDefault("If enabled players will be notified when an admin changes their balance", Boolean.class, false,
-                "notify-on-admin-commands");
-        configManager.setDefault("If enabled players will be asked to confirm payments to an offline player.", Boolean.class, true,
-                "confirm-offline-payments");
-        configManager.save();
+    @Listener
+    public void onRegisterCurrencies(final RegisterRegistryValueEvent.GameScoped event) {
+        event.registry(RegistryTypes.CURRENCY, step -> currencyService.registerAll(step::register));
     }
 
-    private void initializeCurrencies() {
-        // Initialize the default currency into file
-        currencyManager.setDefault(String.class, "current", "coin");
-        currencyManager.setDefault(String.class, "Coin", "coin", "singular");
-        currencyManager.setDefault(String.class, "Coins", "coin", "plural");
-        currencyManager.setDefault(String.class, "C", "coin", "symbol");
-        Currency defaultCurrency =
-                new LiteCurrency(currencyManager.getValue("", String.class, "coin", "singular"),
-                        currencyManager.getValue("", String.class, "coin", "plural"), currencyManager.getValue("", String.class, "coin", "symbol"),
-                        true, 2);
-        currencyEconService = new CurrencyService(defaultCurrency);
-        // Load all of the currencies
-        CommentedConfigurationNode root = currencyManager.getNode();
-        for (Object raw : root.getChildrenMap().keySet()) {
-            if (raw instanceof String) {
-                String currencyId = (String) raw;
-                String singular = currencyManager.getValue("", String.class, currencyId, "singular");
-                String plural = currencyManager.getValue("", String.class, currencyId, "plural");
-                String symbol = currencyManager.getValue("", String.class, currencyId, "symbol");
-                if (!singular.isEmpty() && !plural.isEmpty() && !symbol.isEmpty() && !currencyId.equals("coin")) {
-                    Currency currency = new LiteCurrency(singular, plural, symbol, false, 2);
-                    currencyEconService.addCurrency(currency);
-                }
-            }
+    @Listener
+    public void onProvideEconomy(final ProvideServiceEvent.EngineScoped<EconomyService, Server> event) {
+        if (economyService != null) {
+            event.suggest(() -> economyService);
         }
-        // Attempt to load the current currency
-        String current = currencyManager.getValue("", String.class, "current");
-        if (!current.isEmpty()) {
-            currencyEconService.getCurrencies().forEach(c -> {
-                if (("economylite:" + current).equalsIgnoreCase(c.getId())) {
-                    // This is the current currency
-                    currencyEconService.setCurrentCurrency(c);
-                }
-            });
+    }
+
+    @Listener
+    public void onRegisterCommands(final RegisterCommandEvent<Command.Parameterized> event) {
+        if (economyService != null) {
+            Commands.register(event, this.container);
         }
-        // If the current currency string failed to load set it to default
-        if (currencyEconService.getCurrentCurrency().equals(defaultCurrency)) {
-            currencyManager.forceValue("coin", "current");
-            currencyManager.save();
+    }
+
+    @Listener
+    public void onServerStopping(final StoppingEngineEvent<Server> event) {
+        if (database != null) {
+            database.close();
+            database = null;
         }
-        logger.info("Using currency: " + currencyEconService.getCurrentCurrency().getName());
     }
 
     public Logger getLogger() {
-        return logger;
-    }
-
-    public Game getGame() {
-        return game;
+        return this.logger;
     }
 
     public Path getConfigDir() {
-        return configDir;
+        return this.configDir;
     }
 
     public PluginContainer getPluginContainer() {
-        return container;
-    }
-
-    public static ConfigManager getCurrencyManager() {
-        return currencyManager;
-    }
-
-    public static ConfigManager getConfigManager() {
-        return configManager;
-    }
-
-    public static MessageStorage getMessageStorage() {
-        return messageStorage;
-    }
-
-    public static PlayerEconService getPlayerService() {
-        return playerEconService;
-    }
-
-    public static VirtualEconService getVirtualService() {
-        return virtualEconService;
-    }
-
-    public static CurrencyEconService getCurrencyService() {
-        return currencyEconService;
-    }
-
-    public static EconomyService getEconomyService() {
-        return economyService;
+        return this.container;
     }
 
     public static EconomyLite getInstance() {
         return instance;
     }
 
-    public static List<Module> getModules() {
-        return ImmutableList.of(new SqlModule(), new LoanModule());
+    public static ConfigFile getConfig() {
+        return config;
     }
 
-    public String getMainDir() {
-        return mainDir.toString();
+    public static Messages getMessages() {
+        return messages;
     }
 
-    // Setters
-
-    public static void setPlayerService(PlayerEconService serv) {
-        playerEconService = serv;
+    public static CurrencyEconService getCurrencyService() {
+        return currencyService;
     }
 
-    public static void setVirtualService(VirtualEconService serv) {
-        virtualEconService = serv;
+    public static PlayerEconService getPlayerService() {
+        return playerService;
     }
 
+    public static VirtualEconService getVirtualService() {
+        return virtualService;
+    }
+
+    public static EconomyService getEconomyService() {
+        return economyService;
+    }
+
+    public static BigDecimal getDefaultPlayerBalance() {
+        return BigDecimal.valueOf(config.node("default-balance", "player").getDouble(0));
+    }
+
+    public static BigDecimal getDefaultVirtualBalance() {
+        return BigDecimal.valueOf(config.node("default-balance", "virtual").getDouble(0));
+    }
 }

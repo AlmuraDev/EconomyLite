@@ -11,44 +11,51 @@ public interface CurrencyEconService {
 
     /**
      * Gets all currencies.
-     * 
+     *
      * @return A set of all currencies.
      */
-    public Set<Currency> getCurrencies();
+    Set<Currency> getCurrencies();
 
     /**
      * Adds a currency to the currencies.
-     * 
+     *
      * @param currency The currency to add.
      */
-    public void addCurrency(Currency currency);
+    void addCurrency(Currency currency);
 
     /**
-     * Gets the default currency.
-     * 
+     * Gets the default currency, the one EconomyLite always has.
+     *
      * @return The default currency.
      */
-    public Currency getDefaultCurrency();
+    Currency getDefaultCurrency();
 
     /**
      * Sets the currency in use by the server.
-     * 
+     *
      * @param currency The currency in use.
      */
-    public void setCurrentCurrency(Currency currency);
+    void setCurrentCurrency(Currency currency);
 
     /**
-     * Deletes a currency.
-     * 
+     * Deletes a currency and every balance in it.
+     *
      * @param currency The currency to delete.
      */
-    public void deleteCurrency(Currency currency);
+    void deleteCurrency(Currency currency);
 
     /**
      * Gets the currency in use by the server.
-     * 
+     *
      * @return The currency in use.
      */
-    public Currency getCurrentCurrency();
+    Currency getCurrentCurrency();
 
+    /**
+     * Gets the id balances of a currency are stored under, such as {@code economylite:coin}.
+     *
+     * @param currency The currency.
+     * @return The id of the currency.
+     */
+    String getId(Currency currency);
 }

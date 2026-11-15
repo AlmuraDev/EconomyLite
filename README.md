@@ -8,25 +8,31 @@ EconomyLite is a lightweight, yet advanced economy plugin for your Sponge server
 ### Features
 
 - Drag & Drop Installation
-  - Just drop EconomyLite into your "mods" folder with Sponge and start your server
-- Multi-Threaded
-  -  EconomyLite is multi-threaded for the best possible performance
-- Multiple Storage Options
-  - Store your data however you like, locally or on a MySQL database
-- Migration
-  - EconomyLite allows you to easily migrate your data from another economy plugin
+  - Just drop EconomyLite into your "mods" folder with SpongeNeo and start your server
+- Local Storage
+  - Balances are kept in an H2 database that EconomyLite brings with it
 - Customizable
   - Much of EconomyLite can be changed to suit your needs
 - Virtual Management
   - EconomyLite includes commands to manage virtual accounts
-- Loans
-  - Players can take out loans if they are running short on money
 - Multiple Currencies
   - EconomyLite has built-in support for multiple currencies
 
 ### Installation
 
-Drag and drop EconomyLite into your "mods" folder along with Sponge and start your server. The configuration files can be found in `config/EconomyLite`.
+Drag and drop EconomyLite into your "mods" folder along with SpongeNeo and start your server. The configuration files can be found in `config/economylite`.
+
+### Version 3 (branch `4.0`): SpongeAPI 21 / SpongeNeo
+
+This branch runs on SpongeAPI 21, the API of SpongeNeo for Minecraft 26.3, and builds with JDK 25 (`gradlew build`, jar in `build/libs`).
+The SpongeAPI 7 version stays on `master`.
+
+- The commands, permissions, `config.conf`, `currencies.conf` and `messages.conf` are those of EconomyLite 2.x.
+- The balances stay in `data.mv.db` with the same tables. SpongeAPI 21 has no SQL service, so EconomyLite bundles H2 2
+  and loads it in a class loader of its own. On the first start a database written by EconomyLite 2.x (H2 1.4) is moved to
+  H2 2 once, with a bundled H2 1.4.196; the old file is kept as `data.mv.db.h2-1.4.bak`, and the move is checked by
+  comparing the account counts and the total of all player balances.
+- The MySQL, loan and business modules, the `/migrate` command and bStats are not part of this version.
 
 ---
 

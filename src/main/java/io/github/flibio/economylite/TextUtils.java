@@ -3,26 +3,37 @@
  */
 package io.github.flibio.economylite;
 
-import org.spongepowered.api.command.CommandSource;
-import org.spongepowered.api.text.Text;
-import org.spongepowered.api.text.action.TextActions;
-import org.spongepowered.api.text.format.TextColors;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.spongepowered.api.adventure.SpongeComponents;
+import org.spongepowered.api.command.CommandCause;
 
 import java.util.function.Consumer;
 
-public class TextUtils {
+public final class TextUtils {
 
-    public static Text yesOrNo(Consumer<CommandSource> yes, Consumer<CommandSource> no) {
-        Text accept =
-                Text.of(TextColors.DARK_GRAY, "[", TextColors.GREEN, "YES", TextColors.DARK_GRAY, "]").toBuilder()
-                        .onHover(TextActions.showText(Text.of(TextColors.GREEN, "Yes!")))
-                        .onClick(TextActions.executeCallback(yes))
-                        .build();
-        Text deny =
-                Text.of(TextColors.DARK_GRAY, "[", TextColors.RED, "NO", TextColors.DARK_GRAY, "]").toBuilder()
-                        .onHover(TextActions.showText(Text.of(TextColors.RED, "No!")))
-                        .onClick(TextActions.executeCallback(no))
-                        .build();
-        return accept.toBuilder().append(Text.of(" "), deny).build();
+    private TextUtils() {
+    }
+
+    public static Component yesOrNo(final Consumer<CommandCause> yes, final Consumer<CommandCause> no) {
+        final Component accept = Component.text()
+                .append(Component.text("[", NamedTextColor.DARK_GRAY), Component.text("YES", NamedTextColor.GREEN),
+                        Component.text("]", NamedTextColor.DARK_GRAY))
+                .hoverEvent(HoverEvent.showText(Component.text("Yes!", NamedTextColor.GREEN)))
+                .clickEvent(SpongeComponents.executeCallback(yes))
+                .build();
+        final Component deny = Component.text()
+                .append(Component.text("[", NamedTextColor.DARK_GRAY), Component.text("NO", NamedTextColor.RED),
+                        Component.text("]", NamedTextColor.DARK_GRAY))
+                .hoverEvent(HoverEvent.showText(Component.text("No!", NamedTextColor.RED)))
+                .clickEvent(SpongeComponents.executeCallback(no))
+                .build();
+        return Component.text().append(accept, Component.space(), deny).build();
+    }
+
+    /** Makes a message run a callback when clicked. */
+    public static Component onClick(final Component message, final Consumer<CommandCause> callback) {
+        return message.clickEvent(SpongeComponents.executeCallback(callback));
     }
 }

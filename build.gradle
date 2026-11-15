@@ -1,79 +1,69 @@
 plugins {
     id 'java'
-    id 'eclipse'
-    id 'maven'
-    id 'com.github.hierynomus.license' version '0.12.1'
-    id 'net.ellune.blossom' version '1.0.1'
-    id 'com.github.johnrengelman.shadow' version '1.2.3'
 }
 
-sourceCompatibility = '1.8'
-targetCompatibility = '1.8'
+base {
+    archivesName = 'EconomyLite'
+}
 
-group 'io.github.flibio'
-
-defaultTasks 'licenseFormat', 'shadowJar'
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(java_version as int)
+}
 
 repositories {
     mavenCentral()
-    jcenter()
     maven {
-        name 'Sponge API repo'
-        url 'http://repo.spongepowered.org/maven'
+        name = 'Sponge'
+        url = uri('https://repo.spongepowered.org/repository/maven-public/')
+        content {
+            includeGroup('org.spongepowered')
+        }
     }
-    maven { url "https://jitpack.io" }
+}
+
+configurations {
+    // Jars packed into the plugin jar as plain files (META-INF/economylite/libs), not on the class path
+    bundledH2 { transitive = false }
+    bundledH2Legacy { transitive = false }
 }
 
 dependencies {
-    compile "org.spongepowered:spongeapi:${project.apiVersion}"
-    compile 'com.github.flibiostudio:utils:164f3b6'
+    // SpongeNeo brings SpongeAPI (with Adventure, Configurate, Guice, Caffeine and Log4j) at run time
+    compileOnly("org.spongepowered:spongeapi:${sponge_api_version}")
+
+    bundledH2("com.h2database:h2:${h2_version}")
+    bundledH2Legacy("com.h2database:h2:${h2_legacy_version}")
 }
 
-shadowJar {
-    def bVer = System.getenv("BUILD_NUMBER") ?: version
-    def buildNumber = ''
-    if (System.getenv("TRAVIS") != null) {
-        buildNumber = '-BUILD'
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = java_version as int
+}
+
+def pluginProps = [
+        'version'           : project.version,
+        'sponge_api_version': sponge_api_version.replace('-SNAPSHOT', ''),
+        'h2_version'        : h2_version,
+        'h2_legacy_version' : h2_legacy_version
+]
+
+processResources {
+    inputs.properties(pluginProps)
+    filesMatching(['META-INF/sponge_plugins.json', 'economylite-build.properties']) {
+        expand(pluginProps)
     }
-    archiveName = "EconomyLite-${project.apiVersion.minus("-SNAPSHOT")}-${bVer}${buildNumber}.jar"
-
-    dependencies {
-        include dependency('com.github.flibiostudio:utils')
-    }
-
-    relocate 'io.github.flibio.utils', 'io.github.flibio.economylite.utils'
-}
-
-artifacts {
-    archives shadowJar
-}
-
-license {
-
-    // The project properties to use
-    ext.name = project.name
-
-    // The file that contains the license header
-    header file('HEADER.txt')
-
-    // The source sets to apply the license to
-    sourceSets = project.sourceSets
-
-    // Exclude properties files
-    exclude "**/*.properties"
-
-    ignoreFailures false
-    strictCheck true
-
-    mapping {
-        java = 'SLASHSTAR_STYLE'
+    into('META-INF/economylite/libs') {
+        from(configurations.bundledH2) { rename { "h2-${h2_version}.jar" } }
+        from(configurations.bundledH2Legacy) { rename { "h2-${h2_legacy_version}.jar" } }
     }
 }
 
-task wrapper(type: Wrapper) {
-    gradleVersion = '2.11'
-}
-
-blossom {
-    replaceToken '@project.version@', project.version, 'src/main/java/io/github/flibio/economylite/PluginInfo.java'
+jar {
+    manifest {
+        attributes(
+                'Specification-Title': 'EconomyLite',
+                'Implementation-Title': 'EconomyLite',
+                'Implementation-Version': project.version
+        )
+    }
 }

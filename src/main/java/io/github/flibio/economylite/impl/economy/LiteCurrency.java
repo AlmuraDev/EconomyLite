@@ -3,78 +3,121 @@
  */
 package io.github.flibio.economylite.impl.economy;
 
+import net.kyori.adventure.text.Component;
+import org.spongepowered.api.ResourceKey;
 import org.spongepowered.api.service.economy.Currency;
-import org.spongepowered.api.text.Text;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Locale;
+import java.util.Optional;
 
-public class LiteCurrency implements Currency {
+public final class LiteCurrency implements Currency {
 
-    private String singular;
-    private String plural;
-    private String symbol;
-    private boolean defaultCur;
-    private int digits;
+    private final String singular;
+    private final String plural;
+    private final String symbol;
+    private final boolean defaultCurrency;
+    private final int digits;
 
-    public LiteCurrency(String singular, String plural, String symbol, boolean defaultCur, int digits) {
+    public LiteCurrency(final String singular, final String plural, final String symbol, final boolean defaultCurrency, final int digits) {
         this.singular = singular;
         this.plural = plural;
         this.symbol = symbol;
-        this.defaultCur = defaultCur;
+        this.defaultCurrency = defaultCurrency;
         this.digits = digits;
     }
 
-    @Override
-    public int getDefaultFractionDigits() {
-        return digits;
+    /**
+     * The id EconomyLite stores balances under, as EconomyLite 2.x made it: {@code economylite:} and the lower case
+     * singular name with spaces as underscores.
+     */
+    public String id() {
+        return "economylite:" + this.configKey();
+    }
+
+    /** The key of the currency in {@code currencies.conf}. */
+    public String configKey() {
+        return this.singular.toLowerCase(Locale.ROOT).replace(" ", "_");
+    }
+
+    /** The key for Sponge's currency registry, empty when the name has characters a resource key may not hold. */
+    public Optional<ResourceKey> registryKey() {
+        final String value = this.configKey();
+        if (value.isEmpty() || !value.matches("[a-z0-9_.\\-/]+")) {
+            return Optional.empty();
+        }
+        return Optional.of(ResourceKey.of("economylite", value));
+    }
+
+    public String singular() {
+        return this.singular;
+    }
+
+    public String plural() {
+        return this.plural;
+    }
+
+    public String symbolText() {
+        return this.symbol;
+    }
+
+    /** The singular name for exactly one, otherwise the plural one. */
+    public String label(final BigDecimal amount) {
+        return amount.compareTo(BigDecimal.ONE) == 0 ? this.singular : this.plural;
     }
 
     @Override
-    public Text getDisplayName() {
-        return Text.of(singular);
+    public Component displayName() {
+        return Component.text(this.singular);
     }
 
     @Override
-    public Text getPluralDisplayName() {
-        return Text.of(plural);
+    public Component pluralDisplayName() {
+        return Component.text(this.plural);
     }
 
     @Override
-    public Text getSymbol() {
-        return Text.of(symbol);
+    public Component symbol() {
+        return Component.text(this.symbol);
+    }
+
+    @Override
+    public Component format(final BigDecimal amount, final int numFractionDigits) {
+        return Component.text(formatAmount(amount, numFractionDigits) + " " + this.label(amount));
+    }
+
+    @Override
+    public int defaultFractionDigits() {
+        return this.digits;
     }
 
     @Override
     public boolean isDefault() {
-        return defaultCur;
+        return this.defaultCurrency;
+    }
+
+    /** An amount as EconomyLite shows it: grouped, with two decimals. */
+    public static String formatAmount(final BigDecimal amount) {
+        return formatAmount(amount, 2);
+    }
+
+    private static String formatAmount(final BigDecimal amount, final int digits) {
+        return String.format(Locale.ENGLISH, "%,." + digits + "f", amount.setScale(digits, RoundingMode.HALF_UP));
     }
 
     @Override
-    public Text format(BigDecimal amount, int digits) {
-        Text label = getPluralDisplayName();
-        if (amount.equals(BigDecimal.ONE)) {
-            label = getDisplayName();
-        }
-        return Text.of(String.format(Locale.ENGLISH, "%,.2f", amount.setScale(digits, RoundingMode.HALF_UP)) + " ", label);
+    public boolean equals(final Object other) {
+        return other instanceof LiteCurrency && this.id().equals(((LiteCurrency) other).id());
     }
 
     @Override
-    public String getId() {
-        return "economylite:" + singular.toLowerCase().replaceAll(" ", "_");
+    public int hashCode() {
+        return this.id().hashCode();
     }
 
     @Override
-    public String getName() {
-        return singular;
+    public String toString() {
+        return this.id();
     }
-
-    @Override
-    public boolean equals(Object other) {
-        if (!(other instanceof Currency))
-            return false;
-        return this.getId().equals(((Currency) other).getId());
-    }
-
 }
